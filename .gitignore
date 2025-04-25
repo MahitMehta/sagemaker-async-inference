@@ -1,0 +1,15 @@
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+/**/__pycache__/
+.venv
+.ruff_cache
+.DS_Store
+/**/.DS_Store
+
+# environment variables
+.envrc
+
+# tmp model data
+output/
