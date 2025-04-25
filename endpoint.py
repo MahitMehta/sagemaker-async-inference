@@ -23,14 +23,10 @@ def deploy():
         image_uri=image_uri,
         role=role,
         env=env,
-        sagemaker_session=sagemaker.Session(),
-        # source_dir="code",
-        # dependencies=["code/requirements.txt"],
         name=SAGEMAKER_MODEL_NAME,
-        # entry_point="inference.py", 
     )
 
-    # TODO: Using a custom inference script is not supported when using HF_TASK, you have gzip the code dir and upload it to S3
+    # TODO: Using a custom inference script is not supported when using HF_TASK, you have to gzip the code dir and upload it to S3
     # https://github.com/huggingface/notebooks/blob/main/sagemaker/17_custom_inference_script/sagemaker-notebook.ipynb
 
     async_config = AsyncInferenceConfig(
@@ -91,14 +87,62 @@ def autoscale():
             PolicyType="TargetTrackingScaling",
             TargetTrackingScalingPolicyConfiguration={
                 "TargetValue": 1.0,
-                "PredefinedMetricSpecification": {
-                    "PredefinedMetricType": "SageMakerVariantInvocationsPerInstance"
+                "CustomizedMetricSpecification": {
+                    "MetricName": "ApproximateBacklogSizePerInstance",
+                    "Namespace": "AWS/SageMaker",
+                    "Dimensions": [
+                        {'Name': "EndpointName", "Value": SAGEMAKER_ENDPOINT_NAME }
+                    ],
+                    "Statistic": "Average",
                 },
-                "ScaleInCooldown": 60,
-                "ScaleOutCooldown": 60,
-                "DisableScaleIn": False,
-            },
+            }
         )
+
+        # https://docs.aws.amazon.com/sagemaker/latest/dg/async-inference-autoscale.html
+
+        step_scaling = autoscaling.put_scaling_policy(
+            PolicyName="HasBacklogWithoutCapacity-ScalingPolicy",
+            ServiceNamespace="sagemaker", 
+            ResourceId=resource_id, 
+            ScalableDimension="sagemaker:variant:DesiredInstanceCount",
+            PolicyType="StepScaling", 
+            StepScalingPolicyConfiguration={
+                "AdjustmentType": "ChangeInCapacity", 
+                "MetricAggregationType": "Average", 
+                "Cooldown": 30, 
+                "StepAdjustments":
+                [ 
+                    {
+                        "MetricIntervalLowerBound": 0,
+                        "ScalingAdjustment": 1
+                    }
+                ]
+            },    
+        )
+
+        # scale up from zero when pending requests are available
+        cw_client = boto3.client("cloudwatch")
+
+        step_scaling_policy_arn = step_scaling["PolicyARN"]
+        step_scaling_policy_alarm_name = "HasBacklogWithoutCapacity-Alarm"
+
+        cw_client.put_metric_alarm(
+            AlarmName=step_scaling_policy_alarm_name,
+            MetricName='HasBacklogWithoutCapacity',
+            Namespace='AWS/SageMaker',
+            Statistic='Average',
+            EvaluationPeriods= 2,
+            DatapointsToAlarm= 2,
+            Threshold= 1,
+            ComparisonOperator='GreaterThanOrEqualToThreshold',
+            TreatMissingData='missing',
+            Dimensions=[
+                { "Name":'EndpointName', "Value": SAGEMAKER_ENDPOINT_NAME },
+            ],
+            Period= 60,
+            AlarmActions=[step_scaling_policy_arn]
+        )
+
     except Exception as e:
         print(f"Error configuring autoscaling: {e}")
 
