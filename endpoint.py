@@ -1,33 +1,28 @@
 import sys
 import sagemaker
-from sagemaker.model import Model
+from sagemaker.huggingface.model import HuggingFaceModel
 from sagemaker.async_inference import AsyncInferenceConfig
-from typing import Dict
-from sagemaker.workflow.parameters import PipelineVariable
 
-from constants import MODEL_ID, SAGEMAKER_ENDPOINT_NAME, SAGEMAKER_MODEL_NAME
+from constants import MODEL_S3_KEY, S3_PROJECT_BUCKET, SAGEMAKER_ENDPOINT_NAME, SAGEMAKER_MODEL_NAME
 
 
 def deploy():
+    # Guide for deploying a custom inference script in SageMaker
+    # https://github.com/huggingface/notebooks/blob/main/sagemaker/17_custom_inference_script/sagemaker-notebook.ipynb
+
     role = sagemaker.get_execution_role(use_default=True)
 
     # https://github.com/aws/deep-learning-containers/blob/master/available_images.md
-    image_uri = "763104351884.dkr.ecr.us-east-2.amazonaws.com/huggingface-pytorch-inference:2.1.0-transformers4.37.0-gpu-py310-cu118-ubuntu20.04"
-
-    env: Dict[str, str | PipelineVariable] | None = {
-        "HF_TASK": "text-to-image",
-        "HF_MODEL_ID": MODEL_ID
-    }
-
-    model = Model(
-        image_uri=image_uri,
-        role=role,
-        env=env,
-        name=SAGEMAKER_MODEL_NAME,
+    model = HuggingFaceModel(
+        model_data=f"s3://{S3_PROJECT_BUCKET}/{MODEL_S3_KEY}", 
+        role=role,                  
+        transformers_version="4.37.0",
+        pytorch_version="2.1.0",     
+        py_version='py310',    
+        env={
+            "HF_TASK": "text-to-image"
+        }       
     )
-
-    # TODO: Using a custom inference script is not supported when using HF_TASK, you have to gzip the code dir and upload it to S3
-    # https://github.com/huggingface/notebooks/blob/main/sagemaker/17_custom_inference_script/sagemaker-notebook.ipynb
 
     async_config = AsyncInferenceConfig(
         output_path="s3://mahitm-genai/sdxl-output/",
@@ -36,10 +31,10 @@ def deploy():
 
     # Calculating cost of the endpoint
     # https://calculator.aws/#/createCalculator/SageMaker
-    
+
     model.deploy(
         initial_instance_count=1,
-        instance_type="ml.g6.xlarge",
+        instance_type="ml.g4dn.xlarge",  # "ml.g6.xlarge",
         async_inference_config=async_config,
         endpoint_name=SAGEMAKER_ENDPOINT_NAME,
     )

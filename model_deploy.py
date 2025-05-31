@@ -20,7 +20,6 @@ os.makedirs(tmp_dir, exist_ok=True)
 
 output_dir = os.path.join(tmp_dir, "sdxl_model")
 tar_file = os.path.join(tmp_dir, "model.tar.gz")
-s3_key = "sdxl/model.tar.gz"
 local_inference_file = "./code/inference.py" 
 
 if not os.path.exists(output_dir):
@@ -44,8 +43,8 @@ shutil.copy(local_inference_file, os.path.join(model_code_dir, "inference.py"))
 print("Compressing into model.tar.gz...")
 create_tar_gz_with_libarchive(output_dir, tar_file)
 
-print(f"Uploading {tar_file} to s3://{S3_PROJECT_BUCKET}/{s3_key}...")
+print(f"Uploading {tar_file} to s3://{S3_PROJECT_BUCKET}/{MODEL_S3_KEY}...")
 s3 = boto3.client("s3")
-s3.upload_file(tar_file, S3_PROJECT_BUCKET, s3_key)
+s3.upload_file(tar_file, S3_PROJECT_BUCKET, MODEL_S3_KEY)
 
 print("Model Uploaded successfully to S3.")

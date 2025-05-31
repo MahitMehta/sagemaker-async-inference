@@ -7,3 +7,5 @@ SAGEMAKER_ENDPOINT_NAME = "sdxl-async-endpoint"
 S3_INPUT_PREFIX = "sdxl-inputs"
 
 MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
+
+MODEL_S3_KEY = "sdxl/model.tar.gz"
