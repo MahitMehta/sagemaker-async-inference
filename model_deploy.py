@@ -1,13 +1,25 @@
 import os
-import tarfile
+import time
 import boto3
 from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import StableDiffusionXLPipeline
 import torch
 import shutil
 from constants import *
+import libarchive
 
-output_dir = "./tmp/sdxl_model"
-tar_file = "./tmp/model.tar.gz"
+def create_tar_gz_with_libarchive(output_dir, tar_file):
+    start = time.time()
+
+    with libarchive.file_writer(tar_file, 'gnutar', 'gzip') as archive:
+        archive.add_files(output_dir)
+
+    print(f"Model archive created at {tar_file} in {time.time() - start:.2f} seconds.")
+
+tmp_dir = "./tmp"
+os.makedirs(tmp_dir, exist_ok=True)
+
+output_dir = os.path.join(tmp_dir, "sdxl_model")
+tar_file = os.path.join(tmp_dir, "model.tar.gz")
 s3_key = "sdxl/model.tar.gz"
 local_inference_file = "./code/inference.py" 
 
@@ -30,12 +42,7 @@ print(f"Copying {local_inference_file} to {model_code_dir}/inference.py...")
 shutil.copy(local_inference_file, os.path.join(model_code_dir, "inference.py"))
 
 print("Compressing into model.tar.gz...")
-with tarfile.open(tar_file, "w:gz") as tar:
-    for root, dirs, files in os.walk(output_dir):
-        for file in files:
-            fullpath = os.path.join(root, file)
-            arcname = os.path.relpath(fullpath, start=output_dir)
-            tar.add(fullpath, arcname=arcname)
+create_tar_gz_with_libarchive(output_dir, tar_file)
 
 print(f"Uploading {tar_file} to s3://{S3_PROJECT_BUCKET}/{s3_key}...")
 s3 = boto3.client("s3")

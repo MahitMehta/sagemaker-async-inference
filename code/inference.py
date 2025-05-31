@@ -3,6 +3,8 @@ from diffusers.pipelines.stable_diffusion_xl.pipeline_stable_diffusion_xl import
 )
 import torch
 
+# now 
+
 from datetime import datetime
 import os
 
@@ -20,8 +22,8 @@ def model_fn(model_dir):
     model.safety_checker = None
 
     # TODO: Remove one of these
-    model.enable_attention_slicing()
-    model.enable_xformers_memory_efficient_attention()
+    # model.enable_attention_slicing()
+    # model.enable_xformers_memory_efficient_attention()
 
     return model
 
